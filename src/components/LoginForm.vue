@@ -1,84 +1,94 @@
 <template>
-<div class="login-container">
-  <form @submit.prevent="handleSubmit" class="login-form">
-    <h2>Вход в систему</h2>
+  <div class="login-container">
+    <form @submit.prevent="handleSubmit" class="login-form">
+      <h2>Вход в систему</h2>
 
-    <div v-if="error" class="error-message">
-      {{error}}
-    </div>
+      <div v-if="error" class="error-message">
+        {{ error }}
+      </div>
 
-    <div class="form-group">
-      <label for="email">Email</label>
-      <input
-          id="email"
-          v-model="email"
-          type="email"
-          required
-          placeholder="Введите email"
-          :disabled="loading"
-      />
-    </div>
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input
+            id="email"
+            v-model="email"
+            type="email"
+            required
+            placeholder="Введите email"
+            :disabled="loading"
+        />
+      </div>
 
-    <div class="form-group">
-      <label for="password">Пароль</label>
-      <input
-          id="password"
-          v-model="password"
-          type="password"
-          required
-          placeholder="Введите пароль"
-          :disabled="loading"
-      />
-    </div>
+      <div class="form-group">
+        <label for="password">Пароль</label>
+        <input
+            id="password"
+            v-model="password"
+            type="password"
+            required
+            placeholder="Введите пароль"
+            :disabled="loading"
+        />
+      </div>
 
-    <button type="submit" :disabled="loading" class="submit-btn">
-      {{ loading ? 'Вход...' : 'Войти' }}
-    </button>
+      <button type="submit" :disabled="loading" class="submit-btn">
+        {{ loading ? 'Вход...' : 'Войти' }}
+      </button>
 
-    <p class="register-link">
-      Нет аккаунта?
-      <router-link to="/register">Зарегистрироваться</router-link>
-    </p>
-  </form>
-</div>
+      <p class="register-link">
+        Нет аккаунта?
+        <router-link to="/register">Зарегистрироваться</router-link>
+      </p>
+    </form>
+  </div>
 </template>
 
+<script>
+import { ref } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 
-<script setup>
-import {ref} from "vue";
-import {useAuthStore, userAuthStore} from '@/stores/auth';
+export default {
+  name: 'LoginForm',
+  setup() {
+    const authStore = useAuthStore()
+    const email = ref('')
+    const password = ref('')
+    const loading = ref(false)
+    const error = ref('')
 
-const authStore = useAuthStore();
+    const handleSubmit = async () => {
+      loading.value = true
+      error.value = ''
 
-const email = ref('');
-const password = ref('');
-const loading = ref(false);
-const error = ref('');
+      try {
+        await authStore.login({
+          email: email.value,
+          password: password.value
+        })
+      } catch (err) {
+        error.value = err.response?.data?.detail || 'Ошибка входа'
+      } finally {
+        loading.value = false
+      }
+    }
 
-const handleSubmit = async () => {
-  loading.value = true;
-  error.value = '';
-  try {
-    await authStore.login({
-      email: email.value,
-      password: password.value,
-    });
-  } catch (err) {
-    error.value = err.message || 'Ошибка входа';
-  }finally {
-    loading.value = false;
+    return {
+      email,
+      password,
+      loading,
+      error,
+      handleSubmit
+    }
   }
-};
+}
 </script>
-
 
 <style scoped>
 .login-container {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: calc(100vh - 100px);
 }
 
 .login-form {
@@ -119,10 +129,6 @@ input:focus {
   border-color: #667eea;
 }
 
-input:disabled {
-  background-color: #f5f5f5;
-}
-
 .submit-btn {
   width: 100%;
   padding: 0.75rem;
@@ -135,7 +141,7 @@ input:disabled {
   transition: opacity 0.3s;
 }
 
-.submit-btn:hover(:disabled) {
+.submit-btn:hover:not(:disabled) {
   opacity: 0.9;
 }
 
@@ -159,7 +165,7 @@ input:disabled {
 }
 
 .register-link a {
-  color: #667eeaea;
+  color: #667eea;
   text-decoration: none;
 }
 </style>

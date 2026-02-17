@@ -1,23 +1,23 @@
-import axios from "axios";
+import axios from 'axios'
 
 const api = axios.create({
-    baseURL: 'http://localhost:8086', // URL вашего FastAPI бэкенда
+    baseURL: 'http://localhost:8086', // Убедитесь, что порт правильный
     headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
     }
-});
+})
 
-// Интерцептор для добавления токена к запросам
+// Интерцептор для добавления токена
 api.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem("access_token");
+        const token = localStorage.getItem('access_token')
         if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
+            config.headers.Authorization = `Bearer ${token}`
         }
-        return config;
+        return config
     },
     (error) => {
-        return Promise.reject(error);
+        return Promise.reject(error)
     }
 )
 
@@ -25,18 +25,16 @@ api.interceptors.request.use(
 api.interceptors.response.use(
     (response) => response,
     async (error) => {
-        const originalRequest = error.config;
+        if (error.response?.status === 401) {
+            // Токен истек или недействителен
+            localStorage.removeItem('access_token')
+            localStorage.removeItem('user')
 
-        // Если ошибка 401 и это не запрос на обновление токена
-        if (error.response?.status === 401 && !originalRequest._retry) {
-            originalRequest._retry = true;
-
-
-            // Попытка обновить токен (если используется refresh token)
+            // Перенаправляем на страницу логина
+            window.location.href = '/login'
         }
-        return Promise.reject(error);
+        return Promise.reject(error)
     }
-);
+)
 
-
-export default api;
+export default api

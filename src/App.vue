@@ -4,18 +4,29 @@
       <div class="nav-container">
         <router-link to="/" class="nav-brand">My App</router-link>
         <div class="nav-menu">
+          <span class="welcome-text">
+            Привет, {{ authStore.userName }}!
+          </span>
           <router-link to="/profile" class="nav-link">Профиль</router-link>
           <button @click="handleLogout" class="logout-btn">Выйти</button>
         </div>
       </div>
     </nav>
 
-    <router-view />
+    <router-view v-slot="{ Component }">
+      <transition name="fade" mode="out-in">
+        <component :is="Component" />
+      </transition>
+    </router-view>
+
+    <!-- Глобальный диалог подтверждения -->
+    <ConfirmDialog />
   </div>
 </template>
 
 <script setup>
 import { useAuthStore } from '@/stores/auth';
+import ConfirmDialog from '@/components/ConfirmDialog.vue';
 
 const authStore = useAuthStore();
 
@@ -33,12 +44,18 @@ const handleLogout = () => {
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  background-color: #f5f5f5;
+}
+
+#app {
+  min-height: 100vh;
 }
 
 .navbar {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   padding: 1rem 2rem;
   color: white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .nav-container {
@@ -87,5 +104,9 @@ body {
 .logout-btn:hover {
   background-color: white;
   color: #667eea;
+}
+
+main {
+  padding: 2rem;
 }
 </style>

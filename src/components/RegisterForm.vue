@@ -1,10 +1,22 @@
 <template>
   <div class="register-container">
-    <form @submit.prevent class="register-form">
+    <form @submit.prevent="handleSubmit" class="register-form">
       <h2>Регистрация</h2>
 
       <div v-if="error" class="error-message">
         {{ error }}
+      </div>
+
+      <div class="form-group">
+        <label for="name">Имя</label>
+        <input
+            id="name"
+            v-model="name"
+            type="text"
+            required
+            placeholder="Введите ваше имя"
+            :disabled="loading"
+        >
       </div>
 
       <div class="form-group">
@@ -65,13 +77,14 @@
 
 <script setup>
 import {ref, computed} from 'vue';
-import {useAuthStore, userAuthStore} from '@/stores/auth'
+import {useAuthStore} from '@/stores/auth'
 import {useRouter} from "vue-router";
 
 const authStore = useAuthStore();
 const router = useRouter();
 
 const email = ref('');
+const name = ref('')
 const password = ref('');
 const confirmPassword = ref('');
 const loading = ref(false);
@@ -89,6 +102,7 @@ const passwordError = computed(() => {
 
 const isFormValid = computed(() => {
   return email.value &&
+      name.value &&
       password.value &&
       confirmPassword.value &&
       password.value.length >= 6 &&
@@ -103,6 +117,7 @@ const handleSubmit = async () => {
 
   try {
     await authStore.register({
+      name: name.value,
       email: email.value,
       password: password.value,
     });

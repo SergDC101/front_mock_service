@@ -1,108 +1,91 @@
-<script>
-import axios from 'axios'
-
-export default {
-  data() {
-    return {
-      jsonData: '',
-      login: '',       // Переменная для хранения логина
-      endpoint: '',
-    }
-  },
-  methods: {
-
-    formatJson() {
-      try {
-        // Парсим введенный JSON
-        const parsed = JSON.parse(this.jsonData);
-
-        // Преобразуем обратно в строку с красивыми отступами
-        this.jsonData = JSON.stringify(parsed, null, 2); // indent = 2 пробела
-
-        axios.post(`http://localhost:8000/set_endpoint?login=${this.login}&endpoint=${this.endpoint}`, JSON.parse(this.jsonData),
-            {
-              headers: {
-                'Content-Type': 'application/json',
-                'accept': 'application/json'
-              }
-            }
-        )
-      } catch (err) {
-        alert('Ошибка формата JSON');
-
-      }
-      alert('Endpoint успешно создан');
-    }
-  }
-}
-</script>
-
 <template>
-  <div class="wrapper">
-    <h1>Mock сервис</h1>
+  <div id="app">
+    <nav v-if="authStore.isAuthenticated" class="navbar">
+      <div class="nav-container">
+        <router-link to="/" class="nav-brand">My App</router-link>
+        <div class="nav-menu">
+          <router-link to="/profile" class="nav-link">Профиль</router-link>
+          <button @click="handleLogout" class="logout-btn">Выйти</button>
+        </div>
+      </div>
+    </nav>
 
-    <div id="login_data">
-      <!-- Форма для ввода данных -->
-      <form @submit.prevent="handleSubmit">
-        <label for="login">Login:</label><br/>
-        <input type="text" v-model="login" placeholder="Enter your login"><br/><br/>
-
-        <label for="endpoint">Endpoint:</label><br/>
-        <input type="url" v-model="endpoint" placeholder="Enter the API endpoint"><br/><br/>
-
-      </form>
-
-    </div>
-
-    <div id="app">
-      <textarea v-model="jsonData"></textarea>
-    </div>
-    <button @click="formatJson()">Валидировать json</button>
-
+    <router-view />
   </div>
 </template>
 
-<style scoped>
+<script setup>
+import { useAuthStore } from '@/stores/auth';
 
+const authStore = useAuthStore();
 
-.wrapper {
-  width: 900px;
-  height: 500px;
-  padding: 20px;
-  border-radius: 50px;
-  background: #1f0f24;
-  text-align: center;
-  color: #fff
+const handleLogout = () => {
+  authStore.logout();
+};
+</script>
+
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-.wrapper textarea {
-  width: 500px;
-  height: 300px;
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
 }
 
-
-.wrapper h1 {
-  margin-top: 50px;
+.navbar {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 1rem 2rem;
+  color: white;
 }
 
-.wrapper p {
-  margin-top: 20px;
+.nav-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
+.nav-brand {
+  color: white;
+  text-decoration: none;
+  font-size: 1.5rem;
+  font-weight: bold;
+}
 
-.wrapper button {
-  background: #e3bc4b;
-  color: #fff;
-  border-radius: 10px;
-  border: 2px solid #b99935;
-  padding: 10px 15px;
-  margin-left: 20px;
+.nav-menu {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.nav-link {
+  color: white;
+  text-decoration: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  transition: background-color 0.3s;
+}
+
+.nav-link:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.logout-btn {
+  background: none;
+  border: 1px solid white;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
   cursor: pointer;
-  transition: transform 500ms ease;
+  transition: all 0.3s;
 }
 
-.wrapper button:hover {
-  transform: scale(1.1) translateY(-5px);
+.logout-btn:hover {
+  background-color: white;
+  color: #667eea;
 }
-
 </style>

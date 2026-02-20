@@ -1,16 +1,27 @@
 <template>
   <div class="group-detail">
+    <!-- Отладочная панель (можно убрать после исправления) -->
+    <div v-if="debug" class="debug-panel">
+      <h3>Отладка GroupDetail</h3>
+      <p>Статус загрузки: {{ loading ? 'Загрузка...' : 'Завершено' }}</p>
+      <p>Ошибка: {{ error || 'Нет' }}</p>
+      <button @click="fetchGroup" class="debug-btn">Обновить</button>
+      <button @click="debug = false" class="debug-btn">Скрыть</button>
+
+      <div class="debug-data">
+        <h4>Данные группы:</h4>
+        <pre>{{ JSON.stringify(group, null, 2) }}</pre>
+      </div>
+
+      <div class="debug-data">
+        <h4>Эндпоинты ({{ group?.endpoints?.length || 0 }}):</h4>
+        <pre>{{ JSON.stringify(group?.endpoints, null, 2) }}</pre>
+      </div>
+    </div>
+
     <button @click="goBack" class="back-btn">
       ← Назад к группам
     </button>
-
-    <!-- Всплывающее уведомление -->
-    <Transition name="toast">
-      <div v-if="showToast" class="toast-notification" :class="toastType">
-        <span class="toast-icon">{{ toastIcon }}</span>
-        <span class="toast-message">{{ toastMessage }}</span>
-      </div>
-    </Transition>
 
     <div v-if="loading" class="loading-state">
       <div class="spinner"></div>
@@ -21,12 +32,13 @@
       <span class="error-icon">❌</span>
       <p>{{ error }}</p>
       <button @click="fetchGroup" class="retry-btn">Повторить</button>
+      <button @click="debug = !debug" class="debug-btn">🐛 Отладка</button>
     </div>
 
     <div v-else-if="group" class="group-content">
       <div class="group-header">
         <div>
-          <h1>{{ group.name }}</h1>
+          <h1>{{ group.name || 'Без названия' }}</h1>
           <div class="header-badges">
             <span class="status-badge" :class="{ 'active': group.isActive, 'inactive': !group.isActive }">
               {{ group.isActive ? 'Активна' : 'Неактивна' }}
@@ -58,7 +70,7 @@
         </div>
         <div class="meta-item">
           <span class="meta-label">Всего эндпоинтов:</span>
-          <span class="meta-value">{{ group.endpoints.length }}</span>
+          <span class="meta-value">{{ group.endpoints?.length || 0 }}</span>
         </div>
       </div>
 
@@ -68,9 +80,10 @@
           <button @click="openCreateDialog" class="add-btn">
             + Добавить эндпоинт
           </button>
+          <button @click="debug = !debug" class="debug-toggle" title="Отладка">🐛</button>
         </div>
 
-        <div v-if="group.endpoints.length === 0" class="empty-endpoints">
+        <div v-if="!group.endpoints || group.endpoints.length === 0" class="empty-endpoints">
           <p>В этой группе пока нет эндпоинтов</p>
           <button @click="openCreateDialog" class="add-first-btn">
             Добавить первый эндпоинт
@@ -91,7 +104,6 @@
             <div class="endpoint-content">
               <div class="endpoint-name">{{ endpoint.name }}</div>
 
-              <!-- Отображение URL -->
               <div class="endpoint-url" :class="{ 'copied': copiedEndpointId === endpoint.id }">
                 <code>{{ getFullUrl(endpoint) }}</code>
                 <span class="copy-hint">📋</span>
@@ -167,14 +179,17 @@ import { useAuthStore } from '@/stores/auth';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import EndpointDialog from '@/components/EndpointDialog.vue';
 import EditGroupDialog from '@/components/EditGroupDialog.vue';
-import groupService from '@/services/groupService';
+import groupService from '@/stores/groupService';
 
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 
-// Базовый URL API (можно вынести в .env)
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Отладка
+const debug = ref(false); // Включим отладку по умолчанию для диагностики
+
+// Базовый URL API
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8096';
 
 const group = ref(null);
 const loading = ref(true);
@@ -200,10 +215,12 @@ const selectedEndpoint = ref(null);
 
 // Состояние для диалога эндпоинта
 const showEndpointDialog = ref(false);
-const editingEndpoint = ref(null); // null = создание, объект = редактирование
+const editingEndpoint = ref(null);
 
 // Формирование полного URL для эндпоинта
 const getFullUrl = (endpoint) => {
+  if (!group.value || !endpoint) return '';
+
   const baseUrl = API_BASE_URL.replace(/\/+$/, '');
   const basePath = `/api/v1/${group.value?.endpoint || ''}`.replace(/\/+$/, '');
   const endpointPath = (endpoint.path || '').replace(/^\/+/, '');
@@ -213,12 +230,10 @@ const getFullUrl = (endpoint) => {
 
 // Показать уведомление
 const showNotification = (message, type = 'success') => {
-  // Очищаем предыдущий таймаут
   if (toastTimeout) {
     clearTimeout(toastTimeout);
   }
 
-  // Устанавливаем иконку в зависимости от типа
   const icons = {
     success: '✅',
     error: '❌',
@@ -231,7 +246,6 @@ const showNotification = (message, type = 'success') => {
   toastType.value = type;
   showToast.value = true;
 
-  // Автоматически скрываем через 2 секунды
   toastTimeout = setTimeout(() => {
     showToast.value = false;
   }, 2000);
@@ -244,13 +258,9 @@ const copyToClipboard = async (endpoint) => {
   try {
     await navigator.clipboard.writeText(url);
 
-    // Подсвечиваем скопированный элемент
     copiedEndpointId.value = endpoint.id;
+    showNotification(`URL скопирован`, 'success');
 
-    // Показываем уведомление
-    showNotification(`URL скопирован: ${url.length > 50 ? url.substring(0, 50) + '...' : url}`, 'success');
-
-    // Убираем подсветку через 1 секунду
     setTimeout(() => {
       copiedEndpointId.value = null;
     }, 1000);
@@ -267,10 +277,15 @@ const fetchGroup = async () => {
 
   try {
     const groupId = parseInt(route.params.id);
-    group.value = await groupService.getGroup(groupId);
+    console.log('Загрузка группы с ID:', groupId);
+
+    const data = await groupService.getGroup(groupId);
+    console.log('Получены данные группы:', data);
+
+    group.value = data;
   } catch (err) {
-    error.value = 'Не удалось загрузить группу';
-    console.error(err);
+    error.value = err.message || 'Не удалось загрузить группу';
+    console.error('Ошибка загрузки группы:', err);
     showNotification('Ошибка загрузки группы', 'error');
   } finally {
     loading.value = false;
@@ -278,14 +293,19 @@ const fetchGroup = async () => {
 };
 
 const formatDate = (dateString) => {
-  const date = new Date(dateString);
-  return new Intl.DateTimeFormat('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(date);
+  if (!dateString) return 'Неизвестно';
+  try {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(date);
+  } catch {
+    return 'Неизвестно';
+  }
 };
 
 const goBack = () => {
@@ -312,7 +332,7 @@ const handleDeleteGroupConfirm = async () => {
     showNotification('Группа удалена', 'success');
     router.push('/');
   } catch (err) {
-    showNotification('Не удалось удалить группу', 'error');
+    showNotification(err.message || 'Не удалось удалить группу', 'error');
     console.error(err);
   } finally {
     deleteGroupLoading.value = false;
@@ -338,26 +358,18 @@ const closeEndpointDialog = () => {
   editingEndpoint.value = null;
 };
 
-// Обработчик создания эндпоинта
-const handleEndpointCreated = (data) => {
-  console.log('Создан новый эндпоинт:', data);
-  fetchGroup();
+// Обработчик создания эндпоинта - просто перезагружаем группу
+const handleEndpointCreated = () => {
+  console.log('Эндпоинт успешно создан, перезагружаем данные');
+  fetchGroup(); // Перезагружаем данные группы
   showNotification('Эндпоинт успешно создан', 'success');
 };
 
-// Обработчик обновления эндпоинта
-const handleEndpointUpdated = (updatedEndpoint) => {
-  console.log('Обновлен эндпоинт:', updatedEndpoint);
-
-  if (group.value) {
-    const index = group.value.endpoints.findIndex(e => e.id === updatedEndpoint.id);
-    if (index !== -1) {
-      group.value.endpoints[index] = updatedEndpoint;
-      showNotification('Эндпоинт обновлен', 'success');
-    } else {
-      fetchGroup();
-    }
-  }
+// Обработчик обновления эндпоинта - просто перезагружаем группу
+const handleEndpointUpdated = () => {
+  console.log('Эндпоинт успешно обновлен, перезагружаем данные');
+  fetchGroup(); // Перезагружаем данные группы
+  showNotification('Эндпоинт обновлен', 'success');
 };
 
 const confirmDeleteEndpoint = (endpoint) => {
@@ -368,13 +380,15 @@ const confirmDeleteEndpoint = (endpoint) => {
 const handleDeleteEndpointConfirm = async () => {
   deleteEndpointLoading.value = true;
   try {
-    group.value.endpoints = group.value.endpoints.filter(
-        e => e.id !== selectedEndpoint.value.id
-    );
+    // Здесь должен быть вызов API для удаления эндпоинта
+    // await endpointService.deleteEndpoint(selectedEndpoint.value.id);
+
+    // После успешного удаления перезагружаем группу
+    await fetchGroup();
     showDeleteEndpointDialog.value = false;
     showNotification('Эндпоинт удален', 'success');
   } catch (err) {
-    showNotification('Не удалось удалить эндпоинт', 'error');
+    showNotification(err.message || 'Не удалось удалить эндпоинт', 'error');
     console.error(err);
   } finally {
     deleteEndpointLoading.value = false;
@@ -388,6 +402,63 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* Добавим стили для отладки */
+.debug-panel {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: white;
+  border: 2px solid #ff9800;
+  border-radius: 8px;
+  padding: 1rem;
+  max-width: 500px;
+  max-height: 80vh;
+  overflow: auto;
+  z-index: 10000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.debug-panel h3 {
+  color: #ff9800;
+  margin-top: 0;
+}
+
+.debug-btn {
+  background: #ff9800;
+  color: white;
+  border: none;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+
+.debug-toggle {
+  background: #ff9800;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1.2rem;
+  margin-left: 0.5rem;
+}
+
+.debug-data {
+  margin-top: 1rem;
+  background: #f5f5f5;
+  padding: 0.5rem;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+.debug-data pre {
+  margin: 0;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 .group-detail {
   max-width: 1000px;
   margin: 0 auto;

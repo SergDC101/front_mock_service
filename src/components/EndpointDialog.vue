@@ -18,9 +18,9 @@
               <div class="method-select-wrapper">
                 <select
                     id="httpMethod"
-                    v-model="httpMethod"
+                    v-model="formData.method"
                     class="method-select"
-                    :class="{ 'error': methodError }"
+                    :class="{ 'error': errors.method }"
                     @change="validateMethod"
                     :disabled="loading"
                 >
@@ -34,12 +34,12 @@
                     {{ method.label }}
                   </option>
                 </select>
-                <div class="method-badge" :class="httpMethod.toLowerCase()" v-if="httpMethod">
-                  {{ httpMethod }}
+                <div class="method-badge" :class="formData.method.toLowerCase()" v-if="formData.method">
+                  {{ formData.method }}
                 </div>
               </div>
-              <div v-if="methodError" class="error-message">
-                {{ methodError }}
+              <div v-if="errors.method" class="error-message">
+                {{ errors.method }}
               </div>
               <div class="method-description" v-if="selectedMethodDescription">
                 {{ selectedMethodDescription }}
@@ -50,24 +50,24 @@
             <div class="form-group">
               <label for="endpointPath">
                 Путь эндпоинта *
-                <span class="path-preview">/api/v1/{{ groupEndpoint }}/{{ endpointPath }}</span>
+                <span class="path-preview">/api/v1/{{ groupEndpoint }}/{{ formData.path }}</span>
               </label>
               <div class="path-input-wrapper">
                 <span class="path-prefix">/api/v1/{{ groupEndpoint }}/</span>
                 <input
                     id="endpointPath"
-                    v-model="endpointPath"
+                    v-model="formData.path"
                     type="text"
                     required
                     placeholder="users/get-all"
-                    :class="{ 'error': pathError }"
+                    :class="{ 'error': errors.path }"
                     @input="validatePath"
                     @blur="validatePath"
                     :disabled="loading"
                 />
               </div>
-              <div v-if="pathError" class="error-message">
-                {{ pathError }}
+              <div v-if="errors.path" class="error-message">
+                {{ errors.path }}
               </div>
               <div v-else class="hint">
                 Только латинские буквы, цифры, дефисы и слеши
@@ -78,18 +78,18 @@
             <div class="form-group">
               <label for="jsonData">
                 JSON данные *
-                <span class="json-status" :class="{ 'valid': isJsonValid, 'invalid': jsonError }">
-                  {{ jsonError ? '❌ Невалидный JSON' : '✅ JSON валидный' }}
+                <span class="json-status" :class="{ 'valid': isJsonValid, 'invalid': errors.json }">
+                  {{ errors.json ? '❌ Невалидный JSON' : '✅ JSON валидный' }}
                 </span>
               </label>
               <div class="json-editor">
                 <textarea
                     id="jsonData"
-                    v-model="jsonData"
+                    v-model="formData.jsonString"
                     rows="10"
                     required
                     placeholder='{\n  "key": "value"\n}'
-                    :class="{ 'error': jsonError }"
+                    :class="{ 'error': errors.json }"
                     @input="validateJson"
                     @blur="validateJson"
                     :disabled="loading"
@@ -99,22 +99,37 @@
                   <div v-for="n in jsonLines" :key="n" class="line-number">{{ n }}</div>
                 </div>
               </div>
-              <div v-if="jsonError" class="error-message">
-                {{ jsonError }}
+              <div v-if="errors.json" class="error-message">
+                {{ errors.json }}
               </div>
-              <div v-else-if="jsonData && isJsonValid" class="json-preview">
+              <div v-else-if="formData.jsonString && isJsonValid" class="json-preview">
                 <div class="preview-header">Предпросмотр:</div>
                 <pre class="preview-content">{{ formatJsonPreview }}</pre>
               </div>
             </div>
 
-            <!-- Дополнительная информация -->
-            <div v-if="validationErrors.length > 0" class="validation-errors">
+            <!-- Поле для описания (опционально) -->
+            <div class="form-group">
+              <label for="endpointDescription">
+                Описание
+                <span class="char-counter">{{ formData.description.length }}/200</span>
+              </label>
+              <textarea
+                  id="endpointDescription"
+                  v-model="formData.description"
+                  rows="2"
+                  placeholder="Введите описание эндпоинта (необязательно)"
+                  :disabled="loading"
+              ></textarea>
+            </div>
+
+            <!-- Сводка ошибок -->
+            <div v-if="hasErrors" class="validation-errors">
               <div class="errors-header">
                 <span>⚠️ Невозможно {{ isEditMode ? 'сохранить' : 'создать' }} эндпоинт:</span>
               </div>
               <ul class="errors-list">
-                <li v-for="(error, index) in validationErrors" :key="index">
+                <li v-for="(error, key) in errors" :key="key" v-if="error">
                   {{ error }}
                 </li>
               </ul>
@@ -140,7 +155,7 @@
             <button
                 @click="handleSubmit"
                 class="btn submit-btn"
-                :class="{ 'edit-mode': isEditMode, [httpMethod.toLowerCase()]: httpMethod }"
+                :class="{ 'edit-mode': isEditMode, [formData.method.toLowerCase()]: formData.method }"
                 :disabled="!isFormValid || loading"
             >
               <span v-if="loading" class="spinner-small"></span>
@@ -158,7 +173,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue';
-import api from '@/services/api';
+import endpointService from '@/stores/endpointService';
 
 const props = defineProps({
   show: {
@@ -198,93 +213,99 @@ const isEditMode = computed(() => props.endpointToEdit !== null);
 const originalEndpoint = computed(() => props.endpointToEdit);
 
 // Состояние формы
-const httpMethod = ref('');
-const endpointPath = ref('');
-const jsonData = ref('');
+const formData = ref({
+  method: '',
+  path: '',
+  jsonString: '',
+  description: ''
+});
+
+// Состояние загрузки
 const loading = ref(false);
 
-// Валидация
-const methodError = ref('');
-const pathError = ref('');
-const jsonError = ref('');
+// Ошибки валидации
+const errors = ref({
+  method: '',
+  path: '',
+  json: ''
+});
 
-// Регулярное выражение для пути (латиница, цифры, дефисы, слеши)
+// Регулярное выражение для пути
 const pathRegex = /^[a-zA-Z0-9\-/]+$/;
 
-// Инициализация формы при открытии
+// Инициализация формы
 const initForm = () => {
   if (isEditMode.value && originalEndpoint.value) {
-    // Режим редактирования - заполняем данными
-    httpMethod.value = originalEndpoint.value.method || 'GET';
-    endpointPath.value = originalEndpoint.value.path || '';
-
-    // Пробуем получить JSON данные из эндпоинта
-    try {
-      if (originalEndpoint.value.jsonData) {
-        jsonData.value = typeof originalEndpoint.value.jsonData === 'string'
-            ? originalEndpoint.value.jsonData
-            : JSON.stringify(originalEndpoint.value.jsonData, null, 2);
-      } else {
-        jsonData.value = '';
-      }
-    } catch (e) {
-      console.error('Ошибка при парсинге JSON для редактирования:', e);
-      jsonData.value = '';
-    }
+    // Режим редактирования
+    formData.value = {
+      method: originalEndpoint.value.method || 'GET',
+      path: originalEndpoint.value.path || '',
+      jsonString: originalEndpoint.value.jsonData
+          ? (typeof originalEndpoint.value.jsonData === 'string'
+              ? originalEndpoint.value.jsonData
+              : JSON.stringify(originalEndpoint.value.jsonData, null, 2))
+          : '',
+      description: originalEndpoint.value.description || ''
+    };
   } else {
-    // Режим создания - очищаем форму
-    httpMethod.value = '';
-    endpointPath.value = '';
-    jsonData.value = '';
+    // Режим создания
+    formData.value = {
+      method: '',
+      path: '',
+      jsonString: '',
+      description: ''
+    };
   }
 
   // Сбрасываем ошибки
-  methodError.value = '';
-  pathError.value = '';
-  jsonError.value = '';
+  errors.value = {
+    method: '',
+    path: '',
+    json: ''
+  };
 };
 
 // Описание выбранного метода
 const selectedMethodDescription = computed(() => {
-  const method = httpMethods.find(m => m.value === httpMethod.value);
+  const method = httpMethods.find(m => m.value === formData.value.method);
   return method ? method.description : '';
 });
 
 // Валидация метода
 const validateMethod = () => {
-  if (!httpMethod.value) {
-    methodError.value = 'Выберите HTTP метод';
+  if (!formData.value.method) {
+    errors.value.method = 'Выберите HTTP метод';
   } else {
-    methodError.value = '';
+    errors.value.method = '';
   }
 };
 
 // Валидация пути
 const validatePath = () => {
-  const value = endpointPath.value.trim();
+  const value = formData.value.path.trim();
 
   if (!value) {
-    pathError.value = 'Путь эндпоинта обязателен';
+    errors.value.path = 'Путь эндпоинта обязателен';
   } else if (!pathRegex.test(value)) {
-    pathError.value = 'Только латинские буквы, цифры, дефисы и слеши';
+    errors.value.path = 'Только латинские буквы, цифры, дефисы и слеши';
   } else if (value.startsWith('/') || value.endsWith('/')) {
-    pathError.value = 'Путь не должен начинаться или заканчиваться слешем';
+    errors.value.path = 'Путь не должен начинаться или заканчиваться слешем';
   } else if (value.includes('//')) {
-    pathError.value = 'Путь не должен содержать двойных слешей';
+    errors.value.path = 'Путь не должен содержать двойных слешей';
   } else if (value.length < 3) {
-    pathError.value = 'Минимум 3 символа';
+    errors.value.path = 'Минимум 3 символа';
   } else if (value.length > 100) {
-    pathError.value = 'Максимум 100 символов';
+    errors.value.path = 'Максимум 100 символов';
   } else {
-    pathError.value = '';
+    errors.value.path = '';
   }
 };
 
 // Проверка валидности JSON
 const isJsonValid = computed(() => {
-  if (!jsonData.value.trim()) return false;
+  if (!formData.value.jsonString.trim()) return false;
   try {
-    JSON.parse(jsonData.value);
+    JSON.parse(formData.value.jsonString);
     return true;
   } catch {
     return false;
@@ -293,73 +314,47 @@ const isJsonValid = computed(() => {
 
 // Валидация JSON
 const validateJson = () => {
-  const value = jsonData.value.trim();
+  const value = formData.value.jsonString.trim();
 
   if (!value) {
-    jsonError.value = 'JSON данные обязательны';
+    errors.value.json = 'JSON данные обязательны';
   } else {
     try {
       JSON.parse(value);
-      jsonError.value = '';
+      errors.value.json = '';
     } catch (e) {
-      jsonError.value = `Ошибка JSON: ${e.message}`;
+      errors.value.json = `Ошибка JSON: ${e.message}`;
     }
   }
 };
 
-// Количество строк в JSON для нумерации
+// Количество строк в JSON
 const jsonLines = computed(() => {
-  return jsonData.value.split('\n').length;
+  return formData.value.jsonString.split('\n').length;
 });
 
 // Форматированный предпросмотр JSON
 const formatJsonPreview = computed(() => {
-  if (!jsonData.value || !isJsonValid.value) return '';
+  if (!formData.value.jsonString || !isJsonValid.value) return '';
   try {
-    const parsed = JSON.parse(jsonData.value);
+    const parsed = JSON.parse(formData.value.jsonString);
     return JSON.stringify(parsed, null, 2);
   } catch {
     return '';
   }
 });
 
-// Валидация всей формы
-const validationErrors = computed(() => {
-  const errors = [];
-
-  if (methodError.value) {
-    errors.push(methodError.value);
-  }
-
-  if (pathError.value) {
-    errors.push(pathError.value);
-  }
-
-  if (jsonError.value) {
-    errors.push(jsonError.value);
-  }
-
-  if (!httpMethod.value) {
-    errors.push('Выберите HTTP метод');
-  }
-
-  if (!endpointPath.value.trim()) {
-    errors.push('Укажите путь эндпоинта');
-  }
-
-  if (!jsonData.value.trim()) {
-    errors.push('Укажите JSON данные');
-  }
-
-  return errors;
+// Проверка наличия ошибок
+const hasErrors = computed(() => {
+  return Object.values(errors.value).some(error => error);
 });
 
 // Проверка валидности формы
 const isFormValid = computed(() => {
-  return httpMethod.value &&
-      endpointPath.value.trim() &&
-      !pathError.value &&
-      jsonData.value.trim() &&
+  return formData.value.method &&
+      formData.value.path.trim() &&
+      !errors.value.path &&
+      formData.value.jsonString.trim() &&
       isJsonValid.value;
 });
 
@@ -395,73 +390,54 @@ const handleSubmit = async () => {
   loading.value = true;
 
   try {
-    const fullPath = `${endpointPath.value.trim()}`;
-    const jsonPayload = JSON.parse(jsonData.value);
-
-    // Добавляем метод в данные эндпоинта
-    const endpointData = {
-      method: httpMethod.value,
-      path: fullPath,
-      name: `${httpMethod.value} ${fullPath}`,
-      jsonData: jsonPayload
-    };
+    const endpointPath = formData.value.path;
+    const jsonPayload = JSON.parse(formData.value.jsonString);
 
     if (isEditMode.value) {
       // РЕЖИМ РЕДАКТИРОВАНИЯ
-      console.log('Обновление эндпоинта:', {
-        id: originalEndpoint.value.id,
-        ...endpointData
+      const result = await endpointService.updateEndpoint(originalEndpoint.value.id, {
+        path: endpointPath,
+        method: formData.value.method,
+        jsonData: jsonPayload
       });
 
-      // Имитация успешного обновления (замените на реальный API)
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('Результат обновления:', result);
 
-      // Создаем обновленный объект эндпоинта
-      const updatedEndpoint = {
-        ...originalEndpoint.value,
-        ...endpointData,
-        updatedAt: new Date().toISOString()
-      };
-
-      emit('updated', updatedEndpoint);
+      if (result.success) {
+        // Просто сообщаем об успешном обновлении
+        emit('updated');
+        handleClose();
+      } else {
+        throw new Error(result.message || 'Не удалось обновить эндпоинт');
+      }
     } else {
       // РЕЖИМ СОЗДАНИЯ
-      const url = `http://localhost:8000/set_endpoint?login=${encodeURIComponent(props.login)}&endpoint=${encodeURIComponent(fullPath)}`;
-
-      const response = await api.post(url, jsonPayload, {
-        headers: {
-          'Content-Type': 'application/json',
-          'accept': 'application/json'
-        }
+      const result = await endpointService.createEndpoint({
+        path: endpointPath,
+        method: formData.value.method,
+        jsonData: jsonPayload,
+        groupName: props.groupEndpoint
       });
 
-      console.log('Эндпоинт создан:', response.data);
+      console.log('Результат создания:', result);
 
-      // Добавляем метод в ответ
-      const newEndpoint = {
-        ...response.data,
-        method: httpMethod.value,
-        path: fullPath,
-        name: `${httpMethod.value} ${fullPath}`
-      };
-
-      emit('created', newEndpoint);
+      if (result.success) {
+        // Просто сообщаем об успешном создании
+        emit('created');
+        handleClose();
+      } else {
+        throw new Error(result.message || 'Не удалось создать эндпоинт');
+      }
     }
-
-    handleClose();
 
   } catch (error) {
     console.error(`Ошибка при ${isEditMode.value ? 'обновлении' : 'создании'} эндпоинта:`, error);
 
-    let errorMessage = isEditMode.value
-        ? 'Не удалось обновить эндпоинт'
-        : 'Не удалось создать эндпоинт';
-
-    if (error.response) {
-      errorMessage = error.response.data?.detail || error.response.data?.message || errorMessage;
-    } else if (error.request) {
-      errorMessage = 'Сервер не отвечает. Проверьте подключение.';
-    }
+    const errorMessage = error.message || (
+        isEditMode.value
+            ? 'Не удалось обновить эндпоинт'
+            : 'Не удалось создать эндпоинт'
+    );
 
     alert(errorMessage);
   } finally {
@@ -566,6 +542,15 @@ const handleSubmit = async () => {
   align-items: center;
 }
 
+.char-counter {
+  font-size: 0.8rem;
+  color: #666;
+  font-weight: normal;
+  background: #f0f0f0;
+  padding: 0.2rem 0.5rem;
+  border-radius: 12px;
+}
+
 .method-info {
   font-size: 0.85rem;
   color: #666;
@@ -600,14 +585,6 @@ const handleSubmit = async () => {
 .method-select.error {
   border-color: #f44336;
 }
-
-.method-select option.get { background-color: #61affe; color: white; }
-.method-select option.post { background-color: #49cc90; color: white; }
-.method-select option.put { background-color: #fca130; color: white; }
-.method-select option.patch { background-color: #50e3c2; color: white; }
-.method-select option.delete { background-color: #f93e3e; color: white; }
-.method-select option.head { background-color: #9013fe; color: white; }
-.method-select option.options { background-color: #8b572a; color: white; }
 
 .method-badge {
   position: absolute;
@@ -889,33 +866,13 @@ const handleSubmit = async () => {
   background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
 }
 
-.submit-btn.get {
-  background: linear-gradient(135deg, #61affe 0%, #4a90e2 100%);
-}
-
-.submit-btn.post {
-  background: linear-gradient(135deg, #49cc90 0%, #35a16b 100%);
-}
-
-.submit-btn.put {
-  background: linear-gradient(135deg, #fca130 0%, #f57c00 100%);
-}
-
-.submit-btn.patch {
-  background: linear-gradient(135deg, #50e3c2 0%, #3aa68c 100%);
-}
-
-.submit-btn.delete {
-  background: linear-gradient(135deg, #f93e3e 0%, #d32f2f 100%);
-}
-
-.submit-btn.head {
-  background: linear-gradient(135deg, #9013fe 0%, #6b0fb3 100%);
-}
-
-.submit-btn.options {
-  background: linear-gradient(135deg, #8b572a 0%, #5f3a1c 100%);
-}
+.submit-btn.get { background: linear-gradient(135deg, #61affe 0%, #4a90e2 100%); }
+.submit-btn.post { background: linear-gradient(135deg, #49cc90 0%, #35a16b 100%); }
+.submit-btn.put { background: linear-gradient(135deg, #fca130 0%, #f57c00 100%); }
+.submit-btn.patch { background: linear-gradient(135deg, #50e3c2 0%, #3aa68c 100%); }
+.submit-btn.delete { background: linear-gradient(135deg, #f93e3e 0%, #d32f2f 100%); }
+.submit-btn.head { background: linear-gradient(135deg, #9013fe 0%, #6b0fb3 100%); }
+.submit-btn.options { background: linear-gradient(135deg, #8b572a 0%, #5f3a1c 100%); }
 
 .submit-btn:hover:not(:disabled) {
   opacity: 0.9;

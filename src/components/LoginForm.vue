@@ -65,6 +65,8 @@ export default {
           email: email.value,
           password: password.value
         })
+
+
       } catch (err) {
         error.value = err.response?.data?.detail || 'Ошибка входа'
       } finally {

@@ -28,7 +28,7 @@ export const useAuthStore = defineStore('auth', {
                     is_active: true,
                     is_superuser: false,
                     is_verified: false,
-                    role_id: 0
+                    role_id: 1
                 })
 
                 // После успешной регистрации автоматически логинимся
@@ -69,7 +69,7 @@ export const useAuthStore = defineStore('auth', {
                 this.token = access_token
 
                 // Получаем информацию о пользователе
-                // await this.fetchUser()
+                await this.fetchUser()
 
                 // Перенаправляем на главную
                 await router.push('/')
@@ -83,17 +83,17 @@ export const useAuthStore = defineStore('auth', {
             }
         },
 
-        // async fetchUser() {
-        //     try {
-        //         const response = await api.get('/users/me')
-        //         this.user = response.data
-        //         localStorage.setItem('user', JSON.stringify(response.data))
-        //         return response.data
-        //     } catch (error) {
-        //         console.error('Ошибка получения пользователя:', error)
-        //         this.logout()
-        //     }
-        // },
+        async fetchUser() {
+            try {
+                const response = await api.get('/auth/user_data')
+                this.user = response.data
+                localStorage.setItem('user', JSON.stringify(response.data))
+                return response.data
+            } catch (error) {
+                console.error('Ошибка получения пользователя:', error)
+                this.logout()
+            }
+        },
 
         logout() {
             // Очищаем хранилище

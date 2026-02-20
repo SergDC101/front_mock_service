@@ -188,7 +188,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import GroupCard from '@/components/GroupCard.vue';
-import groupService from '@/services/groupService';
+import groupService from '@/stores/groupService.js';
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -274,6 +274,7 @@ const totalEndpointsCount = computed(() => {
 });
 
 const filteredGroups = computed(() => {
+
   return groups.value.filter(group => {
     // Поиск по тексту
     const matchesSearch = searchQuery.value === '' ||
@@ -290,30 +291,38 @@ const filteredGroups = computed(() => {
   });
 });
 
-// Методы
+// Получение всех групп
 const fetchGroups = async () => {
   loading.value = true;
   error.value = null;
 
   try {
-    groups.value = await groupService.getGroups();
+    const data = await groupService.getGroups();
+    console.log('Получены группы:', data);
+    groups.value = data;
   } catch (err) {
-    error.value = 'Не удалось загрузить группы. Пожалуйста, попробуйте позже.';
+    error.value = err.message || 'Не удалось загрузить группы';
     console.error('Ошибка загрузки групп:', err);
   } finally {
     loading.value = false;
   }
 };
-
 const handleToggleStatus = async (groupId) => {
   try {
-    const updatedGroup = await groupService.toggleGroupStatus(groupId);
+    const group = groups.value.find(g => g.id === groupId);
+    if (!group) return;
+
+    const updatedGroup = await groupService.toggleGroupStatus(
+        groupId,
+        !group.isActive
+    );
+
     const index = groups.value.findIndex(g => g.id === groupId);
     if (index !== -1) {
       groups.value[index] = updatedGroup;
     }
   } catch (err) {
-    alert('Не удалось изменить статус группы');
+    alert(err.message || 'Не удалось изменить статус группы');
     console.error(err);
   }
 };
@@ -338,7 +347,7 @@ const handleDeleteGroup = async (groupId) => {
     await groupService.deleteGroup(groupId);
     groups.value = groups.value.filter(g => g.id !== groupId);
   } catch (err) {
-    alert('Не удалось удалить группу');
+    alert(err.message || 'Не удалось удалить группу');
     console.error(err);
   }
 };
@@ -365,30 +374,83 @@ const closeModal = () => {
 const handleSaveGroup = async () => {
   // Финальная валидация
   validateName();
-  validateEndpoint();
+  if (!editingGroup.value) {
+    validateEndpoint();
+  }
 
   if (!isFormValid.value) {
+    console.log('Форма невалидна');
     return;
   }
 
   try {
     if (editingGroup.value) {
       // Обновление существующей группы
-      const updatedGroup = await groupService.updateGroup(editingGroup.value.id, groupForm.value);
-      const index = groups.value.findIndex(g => g.id === editingGroup.value.id);
-      if (index !== -1) {
-        groups.value[index] = updatedGroup;
+      console.log('Обновление группы:', editingGroup.value.id, groupForm.value);
+      const updatedGroup = await groupService.updateGroup(
+          editingGroup.value.id,
+          groupForm.value
+      );
+
+      console.log('Результат обновления:', updatedGroup);
+
+      // Проверяем успешность операции
+      if (updatedGroup && (updatedGroup.success || updatedGroup.status === 'success' || updatedGroup.id)) {
+        // Обновляем группу в списке
+        const index = groups.value.findIndex(g => g.id === editingGroup.value.id);
+        if (index !== -1) {
+          groups.value[index] = updatedGroup;
+        }
+
+        // Показываем уведомление об успехе
+        showNotification('Группа успешно обновлена', 'success');
+
+        // Закрываем модальное окно
+        closeModal();
+      } else {
+        throw new Error('Не удалось обновить группу');
       }
     } else {
       // Создание новой группы
+      console.log('Создание новой группы:', groupForm.value);
       const newGroup = await groupService.createGroup(groupForm.value);
-      groups.value.push(newGroup);
+      console.log('Результат создания:', newGroup);
+
+      // Проверяем успешность операции
+      if (newGroup && (newGroup.success || newGroup.status === 'success' || newGroup.id)) {
+        // Добавляем новую группу в список
+        groups.value.push(newGroup);
+
+        // Показываем уведомление об успехе
+        showNotification('Группа успешно создана', 'success');
+
+        // Закрываем модальное окно
+        closeModal();
+      } else {
+        throw new Error('Не удалось создать группу');
+      }
     }
-    closeModal();
   } catch (err) {
-    alert('Не удалось сохранить группу');
-    console.error(err);
+    // Показываем ошибку
+    const errorMessage = err.message || 'Не удалось сохранить группу';
+    alert(errorMessage);
+    console.error('Ошибка сохранения:', err);
+
+    // Не закрываем модальное окно при ошибке
   }
+};
+
+// Добавим функцию для показа уведомлений (если еще нет)
+const showNotification = (message, type = 'success') => {
+  // Здесь можно использовать вашу систему уведомлений
+  // Например, toast или просто console.log
+  console.log(`[${type}] ${message}`);
+
+  // Если у вас есть глобальная система уведомлений, вызовите её
+  // Например: toast.show(message, type);
+
+  // Временное решение - alert (можно заменить на что-то более красивое)
+  alert(message);
 };
 
 // Загрузка данных при монтировании компонента

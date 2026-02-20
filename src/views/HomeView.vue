@@ -122,7 +122,7 @@
             <div class="form-group">
               <label for="groupEndpoint">Эндпоинт группы *</label>
               <div class="endpoint-input-wrapper">
-                <span class="endpoint-prefix">/api/v1/</span>
+                <span class="endpoint-prefix">{{ getPreviewPath(groupForm.endpoint) }}</span>
                 <input
                     id="groupEndpoint"
                     v-model="groupForm.endpoint"
@@ -163,9 +163,9 @@
             </div>
 
             <!-- Предпросмотр эндпоинта -->
-            <div v-if="groupForm.endpoint && !validationErrors.endpoint" class="endpoint-preview">
+            <div v-if="groupForm.endpoint && !validationErrors.endpoint && !editingGroup" class="endpoint-preview">
               <span class="preview-label">Полный путь:</span>
-              <code class="preview-value">/api/v1/{{ groupForm.endpoint }}</code>
+              <code class="preview-value">{{ getPreviewPath(groupForm.endpoint) }}</code>
             </div>
 
             <div class="modal-actions">
@@ -185,12 +185,23 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
-import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import GroupCard from '@/components/GroupCard.vue';
 import groupService from '@/stores/groupService.js';
 
+
+
+import { useAuthStore } from '@/stores/auth';
+
+// Внутри setup
 const authStore = useAuthStore();
+
+// Получение пути с именем пользователя для предпросмотра
+const getPreviewPath = (endpoint) => {
+  const username = localStorage.getItem('user') || null;
+  return username ? `/${username}/${endpoint}` : `/${endpoint}`;
+};
+
 const router = useRouter();
 
 // Состояние

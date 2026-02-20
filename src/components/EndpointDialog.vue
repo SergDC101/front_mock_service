@@ -47,13 +47,14 @@
             </div>
 
             <!-- Поле для пути эндпоинта -->
+            <!-- Поле для пути эндпоинта -->
             <div class="form-group">
               <label for="endpointPath">
                 Путь эндпоинта *
-                <span class="path-preview">/api/v1/{{ groupEndpoint }}/{{ formData.path }}</span>
+                <span class="path-preview">{{ getUserPathWithEndpoint(formData.path) }}</span>
               </label>
               <div class="path-input-wrapper">
-                <span class="path-prefix">/api/v1/{{ groupEndpoint }}/</span>
+                <span class="path-prefix">{{ getUserPathWithEndpoint() }}/</span>
                 <input
                     id="endpointPath"
                     v-model="formData.path"
@@ -174,6 +175,18 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
 import endpointService from '@/stores/endpointService';
+import { useAuthStore } from '@/stores/auth';
+
+// Внутри setup
+const authStore = useAuthStore();
+
+// Получение пути с именем пользователя
+const getUserPathWithEndpoint = (path = '') => {
+  const username = authStore.user?.name || authStore.user?.username || '';
+  const basePath = username ? `/${username}/${props.groupEndpoint}` : `/${props.groupEndpoint}`;
+  if (!path) return basePath;
+  return `${basePath}/${path}`.replace(/\/+/g, '/');
+};
 
 const props = defineProps({
   show: {

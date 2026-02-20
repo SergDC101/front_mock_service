@@ -87,7 +87,7 @@ export const useAuthStore = defineStore('auth', {
             try {
                 const response = await api.get('/auth/user_data')
                 this.user = response.data
-                localStorage.setItem('user', JSON.stringify(response.data))
+                localStorage.setItem('user', response.data)
                 return response.data
             } catch (error) {
                 console.error('Ошибка получения пользователя:', error)

@@ -45,7 +45,7 @@
             </span>
             <span class="endpoint-badge">
               <span class="badge-label">Базовый путь:</span>
-              <code class="badge-value">/api/v1/{{ group.endpoint }}</code>
+              <code class="badge-value">{{ getBaseUserPath() }}</code>
             </span>
           </div>
         </div>
@@ -173,9 +173,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { useAuthStore } from '@/stores/auth';
+import {ref, onMounted} from 'vue';
+import {useRoute, useRouter} from 'vue-router';
+import {useAuthStore} from '@/stores/auth';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import EndpointDialog from '@/components/EndpointDialog.vue';
 import EditGroupDialog from '@/components/EditGroupDialog.vue';
@@ -217,15 +217,23 @@ const selectedEndpoint = ref(null);
 const showEndpointDialog = ref(false);
 const editingEndpoint = ref(null);
 
-// Формирование полного URL для эндпоинта
 const getFullUrl = (endpoint) => {
   if (!group.value || !endpoint) return '';
 
   const baseUrl = API_BASE_URL.replace(/\/+$/, '');
-  const basePath = `/api/v1/${group.value?.endpoint || ''}`.replace(/\/+$/, '');
+  const username = localStorage.getItem('user') || null;
+  const userPath = username ? `/${username}` : '';
+  const groupPath = `/${group.value?.endpoint || ''}`.replace(/\/+$/, '');
   const endpointPath = (endpoint.path || '').replace(/^\/+/, '');
 
-  return `${baseUrl}${basePath}/${endpointPath}`;
+  return `${baseUrl}/api${userPath}${groupPath}/${endpointPath}`;
+};
+
+// Получение базового пути с именем пользователя
+const getBaseUserPath = () => {
+  const username = localStorage.getItem('user') || null;
+  const endpoint = group.value?.endpoint || '';
+  return username ? `/${username}/${endpoint}` : `/${endpoint}`;
 };
 
 // Показать уведомление
@@ -346,9 +354,10 @@ const openCreateDialog = () => {
   showEndpointDialog.value = true;
 };
 
+
 // Открыть диалог редактирования эндпоинта
 const openEditDialog = (endpoint) => {
-  editingEndpoint.value = { ...endpoint };
+  editingEndpoint.value = {...endpoint};
   showEndpointDialog.value = true;
 };
 
@@ -396,6 +405,7 @@ const handleDeleteEndpointConfirm = async () => {
   }
 };
 
+
 onMounted(() => {
   fetchGroup();
 });
@@ -415,7 +425,7 @@ onMounted(() => {
   max-height: 80vh;
   overflow: auto;
   z-index: 10000;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .debug-panel h3 {
@@ -973,8 +983,12 @@ onMounted(() => {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .error-state p {

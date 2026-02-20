@@ -38,7 +38,7 @@
                 <span class="endpoint-hint">(изменение недоступно)</span>
               </label>
               <div class="endpoint-readonly">
-                <span class="endpoint-prefix">/api/v1/</span>
+                <span class="endpoint-prefix">{{ localStorage.getItem('user') || null }}/</span>
                 <input
                     id="groupEndpoint"
                     v-model="formData.endpoint"
@@ -49,7 +49,7 @@
                 />
               </div>
               <div class="hint">
-                Эндпоинт группы нельзя изменить после создания
+                Полный путь: {{ getFullPath() }}
               </div>
             </div>
 
@@ -139,6 +139,18 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue';
+import { useAuthStore } from '@/stores/auth';
+
+// Внутри setup
+const authStore = useAuthStore();
+
+// Получение полного пути
+const getFullPath = () => {
+  const username = localStorage.getItem('user') || null;
+  const endpoint = formData.value.endpoint;
+  return username ? `/${username}/${endpoint}` : `/${endpoint}`;
+};
+
 
 const props = defineProps({
   show: {

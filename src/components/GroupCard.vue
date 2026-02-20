@@ -21,9 +21,9 @@
       </div>
     </div>
 
-    <div class="endpoint-badge">
-      <span class="endpoint-label">Эндпоинт:</span>
-      <span class="endpoint-value">{{ group.endpoint }}</span>
+    <div v-if="group.endpoint" class="endpoint-badge">
+      <span class="endpoint-label">Путь:</span>
+      <span class="endpoint-value">{{ getGroupPath() }}</span>
     </div>
 
     <p class="group-description" v-if="group.description">{{ group.description }}</p>
@@ -63,6 +63,18 @@
 
 <script setup>
 import { useDialogStore } from '@/stores/dialog';
+import { useAuthStore } from '@/stores/auth';
+
+// Внутри setup
+const authStore = useAuthStore();
+
+// Получение пути с именем пользователя
+const getGroupPath = () => {
+  const username = localStorage.getItem('user') || null;
+  const endpoint = props.group.endpoint || '';
+  return username ? `/${username}/${endpoint}` : `/${endpoint}`;
+};
+
 
 const props = defineProps({
   group: {
